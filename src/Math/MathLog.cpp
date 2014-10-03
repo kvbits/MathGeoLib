@@ -54,24 +54,18 @@ extern void PrintToConsole(MathLogChannel channel, const char *str); ///< Implem
 
 void PrintToConsole(MathLogChannel channel, const char *str)
 {
-	const int capacity = 512;
-	char text[capacity];
 	if (channel == MathLogError)
 	{
-		strcpy(text, "Error: ");
-		strncat(text, str, capacity-7);
-		text[capacity-1] = 0;
-		(void)__android_log_print(ANDROID_LOG_ERROR, "native-activity", text);
+		(void)__android_log_print(ANDROID_LOG_ERROR, "native-activity%", "Error: %s", str);
 	}
 	else if (channel == MathLogWarning)
 	{
-		strcpy(text, "Warning: ");
-		strncat(text, str, capacity-9);
-		text[capacity-1] = 0;
-		(void)__android_log_print(ANDROID_LOG_WARN, "native-activity", text);
+		(void)__android_log_print(ANDROID_LOG_WARN, "native-activity", "Warning: %s", str);
 	}
 	else
-		(void)__android_log_print(ANDROID_LOG_INFO, "native-activity", str);
+	{
+		(void)__android_log_print(ANDROID_LOG_INFO, "native-activity", "%s", str);
+	}
 }
 
 #elif defined(WIN8PHONE)
