@@ -574,15 +574,16 @@ BENCHMARK(sse_shuffle_ps, "sse")
 	v[i] = scale;
 }
 BENCHMARK_END;
+#endif // ~MATH_SSE
 
+#ifdef MATH_SSE2
 BENCHMARK(sse_shuffle_epi32, "sse")
 {
 	simd4f scale = _mm_castsi128_ps(_mm_shuffle_epi32(_mm_castps_si128((v[i].v)), _MM_SHUFFLE(0,1,2,3)));
 	v[i] = scale;
 }
 BENCHMARK_END;
-
-#endif // ~MATH_SSE
+#endif
 
 #endif // ~MATH_SIMD
 
@@ -1013,6 +1014,203 @@ RANDOMIZED_TEST(copy_nan_Quat)
 	Quat b = a;
 	uninitializedQuat = b;
 }
+
+RANDOMIZED_TEST(vec_PerpendicularBasis)
+{
+	vec a = vec::RandomBox(rng, -100.f, 100.f);
+	if (!a.IsZero())
+	{
+		vec b, c;
+
+		a.PerpendicularBasis(b, c);
+		assert2(a.IsPerpendicular(b), a, b);
+		assert2(a.IsPerpendicular(c), a, c);
+
+		a.Normalize();
+		a.PerpendicularBasis(b, c);
+		assert2(a.IsPerpendicular(b), a, b);
+		assert2(a.IsPerpendicular(c), a, c);
+		assert1(b.IsNormalized(), b.Length());
+		assert1(c.IsNormalized(), c.Length());
+	}
+}
+
+BENCHMARK(float4_PerpendicularBasis, "float4::PerpendicularBasis")
+{
+	float4 b, c;
+	nv[i].PerpendicularBasis(b, c);
+	dummyResultVec += FLOAT4_TO_DIR(b + c);
+}
+BENCHMARK_END;
+
+UNIQUE_TEST(float2_ConvexHull_Case)
+{
+	float2 p[4] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1) };
+	float2 h[4] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1) };
+	int numPointsInConvexHull = float2::ConvexHullInPlace(h, 4);
+	assert(numPointsInConvexHull == 4);
+
+	for(int i = 0; i < 4; ++i)
+		assert(float2::ConvexHullContains(h, numPointsInConvexHull, p[i]));
+	assert(float2::ConvexHullContains(h, numPointsInConvexHull, float2(0,0)));
+}
+
+RANDOMIZED_TEST(float2_ConvexHull)
+{
+	const int n = 100;
+	float2 h[n];
+	float2 p[n];
+	for(int i = 0; i < n; ++i)
+		h[i] = p[i] = float2::RandomBox(rng, -100.f, 100.f);
+
+	int numPointsInConvexHull = float2::ConvexHullInPlace(h, n);
+	assert(numPointsInConvexHull >= 3);
+
+	for(int i = 0; i < n; ++i)
+		assert(float2::ConvexHullContains(h, numPointsInConvexHull, p[i]));
+}
+
+BENCHMARK(float2_ConvexHull, "float2_ConvexHull")
+{
+	const int n = 100;
+	float2 h[n];
+	for(int j = 0; j < n; ++j)
+		h[j] = float2::RandomBox(rng, -100.f, 100.f);
+
+	dummyResultInt += float2::ConvexHullInPlace(h, n);
+}
+BENCHMARK_END;
+
+UNIQUE_TEST(float2_MinAreaRect_Case)
+{
+	float2 p[4] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1) };
+	float2 h[4] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1) };
+	float2 center, uDir, vDir;
+	float minU, maxU, minV, maxV;
+	float2::MinAreaRectInPlace(h, 4, center, uDir, vDir, minU, maxU, minV, maxV);
+
+	float diffUMin = FLOAT_INF, diffUMax = FLOAT_INF, diffVMin = FLOAT_INF, diffVMax = FLOAT_INF;
+	const float epsilon = 1e-3f;
+	for(int i = 0; i < 4; ++i)
+	{
+		float2 d = p[i];
+		float x = d.Dot(uDir);
+		diffUMin = MATH_NS::Min(diffUMin, x - minU);
+		diffUMax = MATH_NS::Min(diffUMax, maxU - x);
+		assert3(x >= minU-epsilon && x <= maxU+epsilon, x, minU, maxU);
+		float y = d.Dot(vDir);
+		diffVMin = MATH_NS::Min(diffVMin, y - minV);
+		diffVMax = MATH_NS::Min(diffVMax, maxV - y);
+		assert3(y >= minV-epsilon && y <= maxV+epsilon, y, minV, maxV);
+	}
+	assert1(diffUMin <= 1e-5f, diffUMin);
+	assert1(diffUMax <= 1e-5f, diffUMax);
+	assert1(diffVMin <= 1e-5f, diffVMin);
+	assert1(diffVMax <= 1e-5f, diffVMax);
+}
+
+UNIQUE_TEST(float2_MinAreaRect_Case_2)
+{
+	float2 p[5] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1), float2(0.75f, 0.75f) };
+	float2 h[5] = { float2(-1, 0), float2(1,0), float2(0,1), float2(0,-1), float2(0.75f, 0.75f) };
+	float2 center, uDir, vDir;
+	float minU, maxU, minV, maxV;
+	float2::MinAreaRectInPlace(h, 5, center, uDir, vDir, minU, maxU, minV, maxV);
+
+	float diffUMin = FLOAT_INF, diffUMax = FLOAT_INF, diffVMin = FLOAT_INF, diffVMax = FLOAT_INF;
+	const float epsilon = 1e-3f;
+	for(int i = 0; i < 5; ++i)
+	{
+		float2 d = p[i];
+		float x = d.Dot(uDir);
+		diffUMin = MATH_NS::Min(diffUMin, x - minU);
+		diffUMax = MATH_NS::Min(diffUMax, maxU - x);
+		assert3(x >= minU-epsilon && x <= maxU+epsilon, x, minU, maxU);
+		float y = d.Dot(vDir);
+		diffVMin = MATH_NS::Min(diffVMin, y - minV);
+		diffVMax = MATH_NS::Min(diffVMax, maxV - y);
+		assert3(y >= minV-epsilon && y <= maxV+epsilon, y, minV, maxV);
+	}
+	assert1(diffUMin <= 1e-5f, diffUMin);
+	assert1(diffUMax <= 1e-5f, diffUMax);
+	assert1(diffVMin <= 1e-5f, diffVMin);
+	assert1(diffVMax <= 1e-5f, diffVMax);
+}
+
+UNIQUE_TEST(float2_MinAreaRect_Case_3)
+{
+	float2 p[3] = { float2(-74.0205307f,18.4061508f), float2(55.5148621f,0.11618042f), float2(89.0816193f,-47.8109818f) };
+	float2 h[3] = { p[0], p[1], p[2] };
+
+	float2 center, uDir, vDir;
+	float minU, maxU, minV, maxV;
+	float2::MinAreaRectInPlace(h, 3, center, uDir, vDir, minU, maxU, minV, maxV);
+
+	float diffUMin = FLOAT_INF, diffUMax = FLOAT_INF, diffVMin = FLOAT_INF, diffVMax = FLOAT_INF;
+	const float epsilon = 1e-3f;
+	for(int i = 0; i < 3; ++i)
+	{
+		float2 d = p[i];
+		float x = d.Dot(uDir);
+		diffUMin = MATH_NS::Min(diffUMin, x - minU);
+		diffUMax = MATH_NS::Min(diffUMax, maxU - x);
+		assert3(x >= minU-epsilon && x <= maxU+epsilon, x, minU, maxU);
+		float y = d.Dot(vDir);
+		diffVMin = MATH_NS::Min(diffVMin, y - minV);
+		diffVMax = MATH_NS::Min(diffVMax, maxV - y);
+		assert3(y >= minV-epsilon && y <= maxV+epsilon, y, minV, maxV);
+	}
+	assert1(diffUMin <= 1e-5f, diffUMin);
+	assert1(diffUMax <= 1e-5f, diffUMax);
+	assert1(diffVMin <= 1e-5f, diffVMin);
+	assert1(diffVMax <= 1e-5f, diffVMax);
+}
+
+RANDOMIZED_TEST(float2_MinAreaRect)
+{
+	const int s = 100;
+	const int n = rng.Int(3, s);
+	float2 h[s];
+	float2 p[s];
+	for(int i = 0; i < n; ++i)
+		h[i] = p[i] = float2::RandomBox(rng, -100.f, 100.f);
+
+	float2 center, uDir, vDir;
+	float minU, maxU, minV, maxV;
+	float2::MinAreaRectInPlace(p, n, center, uDir, vDir, minU, maxU, minV, maxV);
+
+	const float epsilon = 1e-3f;
+	float diffUMin = FLOAT_INF, diffUMax = FLOAT_INF, diffVMin = FLOAT_INF, diffVMax = FLOAT_INF;
+	for(int i = 0; i < n; ++i)
+	{
+		float2 d = p[i];
+		float x = d.Dot(uDir);
+		diffUMin = MATH_NS::Min(diffUMin, x - minU);
+		diffUMax = MATH_NS::Min(diffUMax, maxU - x);
+		assert3(x >= minU-epsilon && x <= maxU+epsilon, x, minU, maxU);
+		float y = d.Dot(vDir);
+		diffVMin = MATH_NS::Min(diffVMin, y - minV);
+		diffVMax = MATH_NS::Min(diffVMax, maxV - y);
+		assert3(y >= minV-epsilon && y <= maxV+epsilon, y, minV, maxV);
+	}
+	assert1(diffUMin <= 1e-5f, diffUMin);
+	assert1(diffUMax <= 1e-5f, diffUMax);
+	assert1(diffVMin <= 1e-5f, diffVMin);
+	assert1(diffVMax <= 1e-5f, diffVMax);
+}
+
+BENCHMARK(float2_MinAreaRect, "float2::MinAreaRect")
+{
+	const int n = 100;
+	float2 p[n];
+	for(int j = 0; j < n; ++j)
+		p[j] = float2::RandomBox(rng, -100.f, 100.f);
+
+	float2 center, uDir, vDir;
+	float minU, maxU, minV, maxV;
+	dummyResultInt += (int)float2::MinAreaRectInPlace(p, n, center, uDir, vDir, minU, maxU, minV, maxV);
+}
+BENCHMARK_END;
 
 #ifdef MATH_NEON
 UNIQUE_TEST(MatrixTranspose)
